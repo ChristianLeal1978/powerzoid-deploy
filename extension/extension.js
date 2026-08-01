@@ -23,7 +23,12 @@ const POLL_IDLE_MS = 8000;
 const POLL_BUILD_MS = 3000;
 const VALID_ALIGNS = ['left', 'center', 'right'];
 
-const POSITION_PATH = `${GLib.get_home_dir()}/.config/powerzoid-deploy/panel-position`;
+const DEFAULT_FONT_SIZE = 13;
+const MIN_FONT_SIZE     = 8;
+const MAX_FONT_SIZE     = 20;
+
+const POSITION_PATH  = `${GLib.get_home_dir()}/.config/powerzoid-deploy/panel-position`;
+const FONT_SIZE_PATH = `${GLib.get_home_dir()}/.config/powerzoid-deploy/font-size`;
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,11 +38,13 @@ const POSITION_PATH = `${GLib.get_home_dir()}/.config/powerzoid-deploy/panel-pos
 const DeployIndicator = GObject.registerClass(
 class DeployIndicator extends PanelMenu.Button {
 
-    _init(extension, initialAlign = 'left') {
+    _init(extension, initialAlign = 'left', initialFontSize = DEFAULT_FONT_SIZE) {
         super._init(0.0, 'PowerZoid Deploy');
 
         this._ext          = extension;
         this._currentAlign = initialAlign;
+        this._fontSize      = initialFontSize;
+        this._fontSizeItem  = null;
         this._session      = new Soup.Session();
         this._session.timeout = 5;
         this._lastState     = 'unknown';
@@ -46,6 +53,7 @@ class DeployIndicator extends PanelMenu.Button {
         this._label = new St.Label({
             text:    '▲ offline',
             y_align: Clutter.ActorAlign.CENTER,
+            style:   this._labelStyle(),
         });
         const box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
         box.add_child(this._label);
@@ -101,6 +109,58 @@ class DeployIndicator extends PanelMenu.Button {
         this._openItem.connect('activate', () => this._openInVercel());
         this._openItem.setSensitive(false);
         this.menu.addMenuItem(this._openItem);
+
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        // ── Tamaño de letra ────────────────────────────────────────────
+        this._fontSizeItem = new PopupMenu.PopupMenuItem(
+            this._fontSizeLabel(), { reactive: false }
+        );
+        this._fontSizeItem.label.set_style('color: #aaa; font-style: italic;');
+        this.menu.addMenuItem(this._fontSizeItem);
+
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        const increaseItem = new PopupMenu.PopupMenuItem('A+   Aumentar letra');
+        increaseItem.connect('activate', () => this._changeFontSize(1));
+        this.menu.addMenuItem(increaseItem);
+
+        const decreaseItem = new PopupMenu.PopupMenuItem('A−   Reducir letra');
+        decreaseItem.connect('activate', () => this._changeFontSize(-1));
+        this.menu.addMenuItem(decreaseItem);
+
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        const resetItem = new PopupMenu.PopupMenuItem('↺    Restablecer');
+        resetItem.connect('activate', () => {
+            this._fontSize = DEFAULT_FONT_SIZE;
+            this._applyFontSize();
+            this._ext.saveFontSize(this._fontSize);
+        });
+        this.menu.addMenuItem(resetItem);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Tamaño de letra
+    // ─────────────────────────────────────────────────────────────────────
+
+    _fontSizeLabel() {
+        return `Tamaño: ${this._fontSize} px`;
+    }
+
+    _changeFontSize(delta) {
+        this._fontSize = Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, this._fontSize + delta));
+        this._applyFontSize();
+        this._ext.saveFontSize(this._fontSize);
+    }
+
+    _applyFontSize() {
+        this._label?.set_style(this._labelStyle());
+        this._fontSizeItem?.label.set_text(this._fontSizeLabel());
+    }
+
+    _labelStyle() {
+        return `font-size: ${this._fontSize}px;`;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -253,8 +313,9 @@ class DeployIndicator extends PanelMenu.Button {
 export default class PowerZoidDeployExtension extends Extension {
 
     enable() {
-        const align = this._loadPanelPosition();
-        this._indicator = new DeployIndicator(this, align);
+        const align    = this._loadPanelPosition();
+        const fontSize = this._loadFontSize();
+        this._indicator = new DeployIndicator(this, align, fontSize);
         Main.panel.addToStatusArea('powerzoid-deploy', this._indicator, -1, align);
     }
 
@@ -282,6 +343,33 @@ export default class PowerZoidDeployExtension extends Extension {
             const file = Gio.File.new_for_path(POSITION_PATH);
             file.replace_contents(
                 new TextEncoder().encode(align),
+                null, false,
+                Gio.FileCreateFlags.REPLACE_DESTINATION,
+                null
+            );
+        } catch (_e) {}
+    }
+
+    _loadFontSize() {
+        try {
+            const file = Gio.File.new_for_path(FONT_SIZE_PATH);
+            const [, bytes] = file.load_contents(null);
+            const val = parseInt(new TextDecoder().decode(bytes).trim(), 10);
+            if (Number.isInteger(val))
+                return Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, val));
+        } catch (_e) {}
+        return DEFAULT_FONT_SIZE;
+    }
+
+    saveFontSize(size) {
+        try {
+            const dir = Gio.File.new_for_path(`${GLib.get_home_dir()}/.config/powerzoid-deploy`);
+            dir.make_directory_with_parents(null);
+        } catch (_e) {}
+        try {
+            const file = Gio.File.new_for_path(FONT_SIZE_PATH);
+            file.replace_contents(
+                new TextEncoder().encode(String(size)),
                 null, false,
                 Gio.FileCreateFlags.REPLACE_DESTINATION,
                 null

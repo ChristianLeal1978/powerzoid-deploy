@@ -85,6 +85,7 @@ curl -s http://localhost:6792/status | python3 -m json.tool
 | `~/.config/powerzoid-deploy/token` | Token API de Vercel | **Sí** |
 | `~/.config/powerzoid-deploy/team` | Team ID de Vercel | No (cuentas personales) |
 | `~/.config/powerzoid-deploy/panel-position` | Posición en el panel (`left`/`center`/`right`) | No (default: `left`) |
+| `~/.config/powerzoid-deploy/font-size` | Tamaño de letra del panel en px (`8`–`20`) | No (default: `13`) |
 
 ---
 
@@ -104,11 +105,21 @@ Clic izquierdo o derecho en el indicador:
 🕐  hace 5m
 ──────────────────────
 ↗  Abrir en Vercel
+──────────────────────
+Tamaño: 13 px
+──────────────────────
+A+   Aumentar letra
+A−   Reducir letra
+──────────────────────
+↺    Restablecer
 ```
 
 Al seleccionar una alineación distinta, la extensión se autorestaura
 (`disableExtension`/`enableExtension`) para evitar un bug de rendering de
 GNOME Shell 50 al reubicar actores entre boxes del panel.
+
+El tamaño de letra (8–20px, default 13px) se ajusta desde el menú y se
+conserva entre reinicios en `~/.config/powerzoid-deploy/font-size`.
 
 ---
 
