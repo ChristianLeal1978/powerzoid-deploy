@@ -150,7 +150,8 @@ def extract_meta(detail: dict) -> tuple[str, str]:
         or meta.get("bitbucketCommitRef")
         or ""
     )
-    return commit_message.strip(), branch.strip()
+    commit_message = commit_message.strip().splitlines()[0] if commit_message.strip() else ""
+    return commit_message, branch.strip()
 
 
 # ─────────────────────────────────────────────
