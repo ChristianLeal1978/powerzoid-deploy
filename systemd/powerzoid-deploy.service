@@ -1,0 +1,17 @@
+[Unit]
+Description=PowerZoid Deploy — Daemon de monitoreo de despliegues Vercel
+Documentation=https://github.com/ChristianLeal1978/powerzoid-deploy
+After=network-online.target graphical-session.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/powerzoid-deploy-daemon.py
+Restart=on-failure
+RestartSec=15
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

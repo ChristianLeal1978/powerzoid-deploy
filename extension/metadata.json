@@ -1,0 +1,8 @@
+{
+  "name": "PowerZoid Deploy",
+  "description": "Monitorea despliegues de Vercel en tiempo real desde la barra superior.",
+  "uuid": "powerzoid-deploy@cleal.cl",
+  "version": 1,
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "url": "https://github.com/ChristianLeal1978/powerzoid-deploy"
+}
