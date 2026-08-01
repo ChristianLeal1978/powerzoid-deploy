@@ -179,7 +179,13 @@ def poll_once(token: str, team: str) -> bool:
             _status.update(state="unknown", project=None, api_error="")
         return False
 
-    uid          = detail["uid"]
+    uid = detail.get("id") or detail.get("uid")
+    if uid is None:
+        log(f"  [Vercel] Respuesta sin id/uid: {list(detail.keys())}")
+        with _lock:
+            _status["api_error"] = "respuesta inesperada de la API"
+        return False
+
     ready_state  = detail.get("readyState", "UNKNOWN")
     project      = detail.get("name", "?")
     inspector    = detail.get("inspectorUrl", "")
@@ -237,7 +243,13 @@ def poll_loop() -> None:
     log(f"  Team:  {team or '(cuenta personal)'}")
 
     while True:
-        building = poll_once(token, team)
+        try:
+            building = poll_once(token, team)
+        except Exception as e:
+            log(f"  [poll_loop] Error inesperado: {e}")
+            with _lock:
+                _status["api_error"] = str(e)
+            building = False
         time.sleep(POLL_BUILD_SECONDS if building else POLL_IDLE_SECONDS)
 
 
