@@ -138,6 +138,19 @@ class DeployIndicator extends PanelMenu.Button {
             this._ext.saveFontSize(this._fontSize);
         });
         this.menu.addMenuItem(resetItem);
+
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        const hideItem = new PopupMenu.PopupMenuItem('🙈  Ocultar esta sesión');
+        hideItem.connect('activate', () => this._hideForSession());
+        this.menu.addMenuItem(hideItem);
+    }
+
+    // Oculta el indicador solo en memoria (sin tocar la config en disco):
+    // vuelve a aparecer normalmente en el próximo inicio de sesión.
+    _hideForSession() {
+        this.menu.close();
+        this.hide();
     }
 
     // ─────────────────────────────────────────────────────────────────────
