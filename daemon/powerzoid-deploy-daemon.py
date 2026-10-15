@@ -8,11 +8,13 @@ y expone el estado del último despliegue en localhost.
 Lee config de ~/.config/powerzoid-deploy/{token,team}
 """
 
+import gzip
 import json
 import subprocess
 import sys
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 import urllib.request
@@ -25,11 +27,14 @@ HOME        = Path.home()
 CONFIG_DIR  = HOME / ".config/powerzoid-deploy"
 TOKEN_FILE  = CONFIG_DIR / "token"
 TEAM_FILE   = CONFIG_DIR / "team"
+BILLING_DAY_FILE = CONFIG_DIR / "billing-day"
 
 PORT               = 6792
 POLL_IDLE_SECONDS  = 8
 POLL_BUILD_SECONDS = 3
 API_BASE           = "https://api.vercel.com"
+POLL_BILLING_SECONDS = 30 * 60   # los cargos de Vercel tienen granularidad diaria
+BILLING_LOOKBACK_DAYS = 35       # ventana suficiente para cubrir un ciclo completo
 
 BUILDING_STATES = {"BUILDING", "QUEUED", "INITIALIZING"}
 
@@ -63,6 +68,13 @@ _status: dict = {
     "inspector_url": "",
     "uid":           None,
     "api_error":     "",
+    "billing": {
+        "amount":        None,   # cargos on-demand del ciclo actual (USD)
+        "currency":      "USD",
+        "period_start":  "",     # YYYY-MM-DD
+        "updated":       "",     # HH:MM de la última consulta exitosa
+        "error":         "",
+    },
 }
 _lock       = threading.Lock()
 _prev_uid: str | None = None
@@ -154,6 +166,104 @@ def extract_meta(detail: dict) -> tuple[str, str]:
     return commit_message, branch.strip()
 
 
+def fetch_billing_rows(token: str, team: str, since: datetime):
+    """Itera las filas FOCUS (JSONL) de /v1/billing/charges desde `since` hasta mañana."""
+    until = (datetime.now(timezone.utc) + timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0)
+    params = {
+        "from": since.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        "to":   until.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+    }
+    if team:
+        params["teamId"] = team
+    url = f"{API_BASE}/v1/billing/charges?" + "&".join(f"{k}={v}" for k, v in params.items())
+    req = urllib.request.Request(url, headers={
+        "Authorization":   f"Bearer {token}",
+        "User-Agent":      "PowerZoid-Deploy/1.0",
+        "Accept-Encoding": "gzip",
+    })
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        stream = gzip.GzipFile(fileobj=resp) if resp.headers.get("Content-Encoding") == "gzip" else resp
+        for line in stream:
+            line = line.strip()
+            if line:
+                yield json.loads(line)
+
+
+def configured_period_start(now: datetime) -> str:
+    """Inicio del ciclo según ~/.config/powerzoid-deploy/billing-day (día del mes), o ''."""
+    try:
+        day = int(read_file(BILLING_DAY_FILE))
+    except ValueError:
+        return ""
+    if not 1 <= day <= 28:
+        return ""
+    start = now.replace(day=day)
+    if start.date() > now.date():
+        prev_month_end = now.replace(day=1) - timedelta(days=1)
+        start = prev_month_end.replace(day=day)
+    return start.strftime("%Y-%m-%d")
+
+
+def poll_billing(token: str, team: str) -> None:
+    """Calcula los cargos on-demand del ciclo actual (lo que Vercel cobrará aparte del plan).
+
+    BilledCost ya descuenta el crédito incluido del plan; se excluyen las
+    licencias de suscripción (el propio plan Pro) para coincidir con el
+    'On-Demand Charges' del dashboard. El inicio del ciclo se detecta por la
+    fila diaria del plan con ConsumedQuantity=1 (día de renovación), salvo
+    que se configure billing-day.
+    """
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(days=BILLING_LOOKBACK_DAYS)
+    by_day: dict[str, float] = {}
+    renewals: list[str] = []
+    currency = "USD"
+    try:
+        for row in fetch_billing_rows(token, team, since):
+            day = (row.get("ChargePeriodStart") or "")[:10]
+            if row.get("ServiceCategory") == "Subscription Licenses":
+                if (row.get("ConsumedQuantity") or 0) >= 1 and (row.get("EffectiveCost") or 0) > 0:
+                    renewals.append(day)
+                continue
+            by_day[day] = by_day.get(day, 0.0) + float(row.get("BilledCost") or 0)
+            currency = row.get("BillingCurrency") or currency
+    except urllib.error.HTTPError as e:
+        with _lock:
+            _status["billing"]["error"] = f"HTTP {e.code}"
+        log(f"  [Billing] Error API: HTTP {e.code}")
+        return
+    except Exception as e:
+        with _lock:
+            _status["billing"]["error"] = str(e)
+        log(f"  [Billing] Error: {e}")
+        return
+
+    period_start = configured_period_start(now) or (max(renewals) if renewals else "")
+    if not period_start:
+        period_start = now.replace(day=1).strftime("%Y-%m-%d")
+    amount = sum(v for d, v in by_day.items() if d >= period_start)
+
+    with _lock:
+        _status["billing"] = {
+            "amount":       round(amount, 2),
+            "currency":     currency,
+            "period_start": period_start,
+            "updated":      time.strftime("%H:%M"),
+            "error":        "",
+        }
+    log(f"  [Billing] Ciclo desde {period_start}: {amount:.2f} {currency}")
+
+
+def billing_loop(token: str, team: str) -> None:
+    while True:
+        try:
+            poll_billing(token, team)
+        except Exception as e:
+            log(f"  [billing_loop] Error inesperado: {e}")
+        time.sleep(POLL_BILLING_SECONDS)
+
+
 # ─────────────────────────────────────────────
 # Ciclo de polling
 # ─────────────────────────────────────────────
@@ -243,6 +353,8 @@ def poll_loop() -> None:
     log(f"  Token: configurado ✓")
     log(f"  Team:  {team or '(cuenta personal)'}")
 
+    threading.Thread(target=billing_loop, args=(token, team), daemon=True).start()
+
     while True:
         try:
             building = poll_once(token, team)
@@ -275,6 +387,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/status":
             with _lock:
                 data = dict(_status)
+                data["billing"] = dict(_status["billing"])
             self._json(200, data)
         elif self.path == "/ping":
             self._json(200, {"ok": True, "port": PORT})

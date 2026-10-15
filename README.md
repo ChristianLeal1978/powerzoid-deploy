@@ -3,9 +3,14 @@
 Monitorea despliegues de **Vercel** en tiempo real desde la barra superior del sistema. Parte de la suite **PowerZoids**.
 
 ```
-▲ biobia-escritorio · ⚙ Building     ← build en curso
-▲ biobia-escritorio · ✅ 5m           ← deploy exitoso
-▲ biobia-escritorio · ❌ 2h           ← deploy fallido
+$54,67 ▲ biobia-escritorio · ⚙ Building     ← build en curso
+$54,67 ▲ biobia-escritorio · ✅ 5m           ← deploy exitoso
+$54,67 ▲ biobia-escritorio · ❌ 2h           ← deploy fallido
+```
+
+El monto inicial son los cargos on-demand del ciclo de facturación actual.
+
+```
 ```
 
 ---
@@ -86,6 +91,7 @@ curl -s http://localhost:6792/status | python3 -m json.tool
 | `~/.config/powerzoid-deploy/team` | Team ID de Vercel | No (cuentas personales) |
 | `~/.config/powerzoid-deploy/panel-position` | Posición en el panel (`left`/`center`/`right`) | No (default: `left`) |
 | `~/.config/powerzoid-deploy/font-size` | Tamaño de letra del panel en px (`8`–`20`) | No (default: `13`) |
+| `~/.config/powerzoid-deploy/billing-day` | Día del mes (`1`–`28`) en que empieza el ciclo de facturación | No (se detecta solo) |
 
 ---
 
@@ -103,6 +109,7 @@ Clic izquierdo o derecho en el indicador:
 💬  fix: commit message
 🌿  main
 🕐  hace 5m
+💲  Cargos del período: $54.67 USD (desde 19/09)
 ──────────────────────
 ↗  Abrir en Vercel
 ──────────────────────

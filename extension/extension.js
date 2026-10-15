@@ -251,13 +251,15 @@ class DeployIndicator extends PanelMenu.Button {
     _applyStatus(status) {
         this._lastState = status.state || 'unknown';
         const project = status.project || '?';
+        const amount  = status.billing?.amount;
+        const prefix  = typeof amount === 'number' ? `$${amount.toFixed(2).replace('.', ',')} ` : '';
 
         if (status.state === 'building') {
-            this._label.set_text(`▲ ${project} · ⚙ Building`);
+            this._label.set_text(`${prefix}▲ ${project} · ⚙ Building`);
         } else if (status.state && status.icon) {
-            this._label.set_text(`▲ ${project} · ${status.icon} ${status.time_ago}`);
+            this._label.set_text(`${prefix}▲ ${project} · ${status.icon} ${status.time_ago}`);
         } else {
-            this._label.set_text(`▲ ${project}`);
+            this._label.set_text(`${prefix}▲ ${project}`);
         }
 
         this._lastInspectorUrl = status.inspector_url || null;
@@ -289,6 +291,14 @@ class DeployIndicator extends PanelMenu.Button {
             this._addInfo(`🌿  ${status.branch}`);
         if (status.time_ago)
             this._addInfo(`🕐  hace ${status.time_ago}`);
+
+        const billing = status.billing;
+        if (billing && typeof billing.amount === 'number') {
+            const since = billing.period_start ? ` (desde ${billing.period_start.slice(8, 10)}/${billing.period_start.slice(5, 7)})` : '';
+            this._addInfo(`💲  Cargos del período: $${billing.amount.toFixed(2)} ${billing.currency}${since}`);
+        } else if (billing && billing.error) {
+            this._addInfo(`💲  Cargos: error (${billing.error})`);
+        }
     }
 
     _addInfo(text, bold = false) {
