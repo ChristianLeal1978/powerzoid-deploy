@@ -9,7 +9,9 @@ $5,91/20 ▲ biobia-escritorio · ❌ 2h           ← deploy fallido
 ```
 
 El monto inicial es el crédito incluido consumido en el ciclo de facturación actual
-(`usado/incluido`); si hay cargos on-demand se agregan como `+$x`.
+(`usado/incluido`); si hay cargos on-demand se agregan como `+$x`. La API de Vercel
+solo entrega días ya cerrados, así que el consumo de hoy aparece recién al día
+siguiente (el menú indica la fecha de corte); por eso puede diferir un poco del dashboard.
 
 ```
 ```
@@ -111,7 +113,7 @@ Clic izquierdo o derecho en el indicador:
 💬  fix: commit message
 🌿  main
 🕐  hace 5m
-💲  Crédito usado: $5.91 / $20.0 USD (desde 19/09)
+💲  Crédito usado: $5.91 / $20.0 USD (desde 19/09) · datos al 14/10
 💳  Cargos on-demand: $0.00
 ──────────────────────
 ↗  Abrir en Vercel

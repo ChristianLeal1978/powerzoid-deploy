@@ -305,7 +305,8 @@ class DeployIndicator extends PanelMenu.Button {
         const billing = status.billing;
         if (billing && typeof billing.used === 'number') {
             const since = billing.period_start ? ` (desde ${billing.period_start.slice(8, 10)}/${billing.period_start.slice(5, 7)})` : '';
-            this._addInfo(`💲  Crédito usado: $${billing.used.toFixed(2)} / $${billing.included} ${billing.currency}${since}`);
+            const until = billing.data_until ? ` · datos al ${billing.data_until.slice(8, 10)}/${billing.data_until.slice(5, 7)}` : '';
+            this._addInfo(`💲  Crédito usado: $${billing.used.toFixed(2)} / $${billing.included} ${billing.currency}${since}${until}`);
             this._addInfo(`💳  Cargos on-demand: $${(billing.amount ?? 0).toFixed(2)}`);
         } else if (billing && billing.error) {
             this._addInfo(`💲  Cargos: error (${billing.error})`);

@@ -76,6 +76,7 @@ _status: dict = {
         "included":      DEFAULT_INCLUDED_CREDIT,
         "currency":      "USD",
         "period_start":  "",     # YYYY-MM-DD
+        "data_until":    "",     # YYYY-MM-DD del último día cerrado que entregó la API
         "updated":       "",     # HH:MM de la última consulta exitosa
         "error":         "",
     },
@@ -257,6 +258,8 @@ def poll_billing(token: str, team: str) -> None:
         included = float(read_file(CREDIT_FILE))
     except ValueError:
         included = DEFAULT_INCLUDED_CREDIT
+    # La API solo entrega días ya cerrados: el consumo de hoy aún no está incluido.
+    data_until = max(by_day) if by_day else ""
 
     with _lock:
         _status["billing"] = {
@@ -265,10 +268,11 @@ def poll_billing(token: str, team: str) -> None:
             "included":     included,
             "currency":     currency,
             "period_start": period_start,
+            "data_until":   data_until,
             "updated":      time.strftime("%H:%M"),
             "error":        "",
         }
-    log(f"  [Billing] Ciclo desde {period_start}: usado {used:.2f}/{included:.0f}, on-demand {amount:.2f} {currency}")
+    log(f"  [Billing] Ciclo desde {period_start} (datos al {data_until}): usado {used:.2f}/{included:.0f}, on-demand {amount:.2f} {currency}")
 
 
 def billing_loop(token: str, team: str) -> None:
