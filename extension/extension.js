@@ -185,12 +185,14 @@ class DeployIndicator extends PanelMenu.Button {
 
         this._ext.savePanelPosition(align);
 
-        // Reinicio completo de la extensión: evita un bug de rendering de
+        // Recrea el indicador desde cero: evita un bug de rendering de
         // GNOME Shell 50 al reubicar actores directamente entre boxes del panel.
-        const uuid = this._ext.uuid;
+        // No se usa extensionManager.disable/enableExtension: en Shell 50 son
+        // asíncronos y, encadenados, dejan la extensión en estado INACTIVE.
+        const ext = this._ext;
         GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            Main.extensionManager.disableExtension(uuid);
-            Main.extensionManager.enableExtension(uuid);
+            ext.disable();
+            ext.enable();
             return GLib.SOURCE_REMOVE;
         });
     }
@@ -251,8 +253,7 @@ class DeployIndicator extends PanelMenu.Button {
     _applyStatus(status) {
         this._lastState = status.state || 'unknown';
         const project = status.project || '?';
-        const amount  = status.billing?.amount;
-        const prefix  = typeof amount === 'number' ? `$${amount.toFixed(2).replace('.', ',')} ` : '';
+        const prefix  = this._billingPrefix(status.billing);
 
         if (status.state === 'building') {
             this._label.set_text(`${prefix}▲ ${project} · ⚙ Building`);
@@ -265,6 +266,15 @@ class DeployIndicator extends PanelMenu.Button {
         this._lastInspectorUrl = status.inspector_url || null;
         this._openItem.setSensitive(!!status.inspector_url);
         this._rebuildInfo(status);
+    }
+
+    _billingPrefix(billing) {
+        if (!billing || typeof billing.used !== 'number') return '';
+        const fmt = n => n.toFixed(2).replace('.', ',');
+        let text = `$${fmt(billing.used)}/${Math.round(billing.included)}`;
+        if (billing.amount > 0)
+            text += ` +$${fmt(billing.amount)}`;
+        return `${text} `;
     }
 
     _applyDisconnected() {
@@ -293,9 +303,10 @@ class DeployIndicator extends PanelMenu.Button {
             this._addInfo(`🕐  hace ${status.time_ago}`);
 
         const billing = status.billing;
-        if (billing && typeof billing.amount === 'number') {
+        if (billing && typeof billing.used === 'number') {
             const since = billing.period_start ? ` (desde ${billing.period_start.slice(8, 10)}/${billing.period_start.slice(5, 7)})` : '';
-            this._addInfo(`💲  Cargos del período: $${billing.amount.toFixed(2)} ${billing.currency}${since}`);
+            this._addInfo(`💲  Crédito usado: $${billing.used.toFixed(2)} / $${billing.included} ${billing.currency}${since}`);
+            this._addInfo(`💳  Cargos on-demand: $${(billing.amount ?? 0).toFixed(2)}`);
         } else if (billing && billing.error) {
             this._addInfo(`💲  Cargos: error (${billing.error})`);
         }

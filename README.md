@@ -3,12 +3,13 @@
 Monitorea despliegues de **Vercel** en tiempo real desde la barra superior del sistema. Parte de la suite **PowerZoids**.
 
 ```
-$54,67 ▲ biobia-escritorio · ⚙ Building     ← build en curso
-$54,67 ▲ biobia-escritorio · ✅ 5m           ← deploy exitoso
-$54,67 ▲ biobia-escritorio · ❌ 2h           ← deploy fallido
+$5,91/20 ▲ biobia-escritorio · ⚙ Building     ← build en curso
+$5,91/20 ▲ biobia-escritorio · ✅ 5m           ← deploy exitoso
+$5,91/20 ▲ biobia-escritorio · ❌ 2h           ← deploy fallido
 ```
 
-El monto inicial son los cargos on-demand del ciclo de facturación actual.
+El monto inicial es el crédito incluido consumido en el ciclo de facturación actual
+(`usado/incluido`); si hay cargos on-demand se agregan como `+$x`.
 
 ```
 ```
@@ -92,6 +93,7 @@ curl -s http://localhost:6792/status | python3 -m json.tool
 | `~/.config/powerzoid-deploy/panel-position` | Posición en el panel (`left`/`center`/`right`) | No (default: `left`) |
 | `~/.config/powerzoid-deploy/font-size` | Tamaño de letra del panel en px (`8`–`20`) | No (default: `13`) |
 | `~/.config/powerzoid-deploy/billing-day` | Día del mes (`1`–`28`) en que empieza el ciclo de facturación | No (se detecta solo) |
+| `~/.config/powerzoid-deploy/included-credit` | Crédito mensual incluido en el plan (USD) | No (default: `20`) |
 
 ---
 
@@ -109,7 +111,8 @@ Clic izquierdo o derecho en el indicador:
 💬  fix: commit message
 🌿  main
 🕐  hace 5m
-💲  Cargos del período: $54.67 USD (desde 19/09)
+💲  Crédito usado: $5.91 / $20.0 USD (desde 19/09)
+💳  Cargos on-demand: $0.00
 ──────────────────────
 ↗  Abrir en Vercel
 ──────────────────────

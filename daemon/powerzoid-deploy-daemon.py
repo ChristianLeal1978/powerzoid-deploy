@@ -28,6 +28,8 @@ CONFIG_DIR  = HOME / ".config/powerzoid-deploy"
 TOKEN_FILE  = CONFIG_DIR / "token"
 TEAM_FILE   = CONFIG_DIR / "team"
 BILLING_DAY_FILE = CONFIG_DIR / "billing-day"
+CREDIT_FILE      = CONFIG_DIR / "included-credit"
+DEFAULT_INCLUDED_CREDIT = 20.0   # crédito mensual incluido en el plan Pro (USD)
 
 PORT               = 6792
 POLL_IDLE_SECONDS  = 8
@@ -70,6 +72,8 @@ _status: dict = {
     "api_error":     "",
     "billing": {
         "amount":        None,   # cargos on-demand del ciclo actual (USD)
+        "used":          None,   # consumo del ciclo a precio efectivo (incluye lo cubierto por el crédito)
+        "included":      DEFAULT_INCLUDED_CREDIT,
         "currency":      "USD",
         "period_start":  "",     # YYYY-MM-DD
         "updated":       "",     # HH:MM de la última consulta exitosa
@@ -206,7 +210,10 @@ def configured_period_start(now: datetime) -> str:
 
 
 def poll_billing(token: str, team: str) -> None:
-    """Calcula los cargos on-demand del ciclo actual (lo que Vercel cobrará aparte del plan).
+    """Calcula el consumo del ciclo actual y los cargos on-demand (lo que Vercel cobrará aparte del plan).
+
+    EffectiveCost es el consumo a precio real, incluido lo que cubre el crédito
+    del plan ('Included Credit' del dashboard).
 
     BilledCost ya descuenta el crédito incluido del plan; se excluyen las
     licencias de suscripción (el propio plan Pro) para coincidir con el
@@ -217,6 +224,7 @@ def poll_billing(token: str, team: str) -> None:
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=BILLING_LOOKBACK_DAYS)
     by_day: dict[str, float] = {}
+    used_by_day: dict[str, float] = {}
     renewals: list[str] = []
     currency = "USD"
     try:
@@ -227,6 +235,7 @@ def poll_billing(token: str, team: str) -> None:
                     renewals.append(day)
                 continue
             by_day[day] = by_day.get(day, 0.0) + float(row.get("BilledCost") or 0)
+            used_by_day[day] = used_by_day.get(day, 0.0) + float(row.get("EffectiveCost") or 0)
             currency = row.get("BillingCurrency") or currency
     except urllib.error.HTTPError as e:
         with _lock:
@@ -243,16 +252,23 @@ def poll_billing(token: str, team: str) -> None:
     if not period_start:
         period_start = now.replace(day=1).strftime("%Y-%m-%d")
     amount = sum(v for d, v in by_day.items() if d >= period_start)
+    used   = sum(v for d, v in used_by_day.items() if d >= period_start)
+    try:
+        included = float(read_file(CREDIT_FILE))
+    except ValueError:
+        included = DEFAULT_INCLUDED_CREDIT
 
     with _lock:
         _status["billing"] = {
             "amount":       round(amount, 2),
+            "used":         round(used, 2),
+            "included":     included,
             "currency":     currency,
             "period_start": period_start,
             "updated":      time.strftime("%H:%M"),
             "error":        "",
         }
-    log(f"  [Billing] Ciclo desde {period_start}: {amount:.2f} {currency}")
+    log(f"  [Billing] Ciclo desde {period_start}: usado {used:.2f}/{included:.0f}, on-demand {amount:.2f} {currency}")
 
 
 def billing_loop(token: str, team: str) -> None:
